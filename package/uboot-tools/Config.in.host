@@ -1,5 +1,7 @@
 config BR2_PACKAGE_HOST_UBOOT_TOOLS
 	bool "host u-boot tools"
+	select BR2_PACKAGE_HOST_SWIG
+	select BR2_PACKAGE_HOST_GNUTLS
 	help
 	  Companion tools for Das U-Boot bootloader.
 

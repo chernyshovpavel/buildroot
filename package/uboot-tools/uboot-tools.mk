@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-UBOOT_TOOLS_VERSION = 2021.07
+UBOOT_TOOLS_VERSION = 2024.07
 UBOOT_TOOLS_SOURCE = u-boot-$(UBOOT_TOOLS_VERSION).tar.bz2
 UBOOT_TOOLS_SITE = https://ftp.denx.de/pub/u-boot
 UBOOT_TOOLS_LICENSE = GPL-2.0+
@@ -17,24 +17,25 @@ UBOOT_TOOLS_INSTALL_STAGING = YES
 UBOOT_TOOLS_DEPENDENCIES = $(BR2_MAKE_HOST_DEPENDENCY)
 HOST_UBOOT_TOOLS_DEPENDENCIES = $(BR2_MAKE_HOST_DEPENDENCY)
 
+HOST_UBOOT_TOOLS_DEPENDENCIES += host-gnutls host-swig
+
 define UBOOT_TOOLS_CONFIGURE_CMDS
-	mkdir -p $(@D)/include/config
-	touch $(@D)/include/config/auto.conf
-	mkdir -p $(@D)/include/generated
-	touch $(@D)/include/generated/autoconf.h
-	echo $(if $(BR2_PACKAGE_UBOOT_TOOLS_FIT_SUPPORT),'#define CONFIG_FIT_PRINT 1') >> $(@D)/include/generated/autoconf.h
-	mkdir -p $(@D)/include/asm
-	touch $(@D)/include/asm/linkage.h
+	echo 'CONFIG_TEXT_BASE=0' > $(@D)/configs/buildroot_defconfig
+	echo 'CONFIG_SYS_LOAD_ADDR=0x0' >> $(@D)/configs/buildroot_defconfig
+	echo '# CONFIG_ACPIGEN is not set' >> $(@D)/configs/buildroot_defconfig
+
+	$(TARGET_MAKE_ENV) $(BR2_MAKE) -C $(@D) $(UBOOT_TOOLS_MAKE_OPTS) buildroot_defconfig
 endef
 
 UBOOT_TOOLS_MAKE_OPTS = CROSS_COMPILE="$(TARGET_CROSS)" \
 	CFLAGS="$(TARGET_CFLAGS)" \
 	LDFLAGS="$(TARGET_LDFLAGS)" \
 	HOSTCFLAGS="$(HOST_CFLAGS)" \
-	STRIP=$(TARGET_STRIP)
+	STRIP=$(TARGET_STRIP) \
+	CROSS_BUILD_TOOLS=y
 
 ifeq ($(BR2_PACKAGE_UBOOT_TOOLS_FIT_SUPPORT),y)
-UBOOT_TOOLS_MAKE_OPTS += CONFIG_FIT=y CONFIG_MKIMAGE_DTC_PATH=dtc
+UBOOT_TOOLS_MAKE_OPTS += CONFIG_FIT=y CONFIG_MKIMAGE_DTC_PATH=dtc CONFIG_FIT_PRINT=y
 UBOOT_TOOLS_DEPENDENCIES += dtc
 endif
 
@@ -43,21 +44,17 @@ UBOOT_TOOLS_MAKE_OPTS += CONFIG_FIT_SIGNATURE=y CONFIG_FIT_SIGNATURE_MAX_SIZE=0x
 UBOOT_TOOLS_DEPENDENCIES += openssl host-pkgconf
 endif
 
-ifeq ($(BR2_PACKAGE_UBOOT_TOOLS_MKEFICAPSULE),y)
-UBOOT_TOOLS_MAKE_OPTS += CONFIG_EFI_HAVE_CAPSULE_SUPPORT=y
-endif
-
 ifeq ($(BR2_PACKAGE_UBOOT_TOOLS_FIT_CHECK_SIGN),y)
 define UBOOT_TOOLS_INSTALL_FIT_CHECK_SIGN
 	$(INSTALL) -m 0755 -D $(@D)/tools/fit_check_sign $(TARGET_DIR)/usr/bin/fit_check_sign
 endef
 endif
 
+UBOOT_TOOLS_DEPENDENCIES += openssl
+
 define UBOOT_TOOLS_BUILD_CMDS
 	$(TARGET_MAKE_ENV) $(BR2_MAKE) -C $(@D) $(UBOOT_TOOLS_MAKE_OPTS) \
-		CROSS_BUILD_TOOLS=y tools-only
-	$(TARGET_MAKE_ENV) $(BR2_MAKE) -C $(@D) $(UBOOT_TOOLS_MAKE_OPTS) \
-		envtools no-dot-config-targets=envtools
+		envtools tools
 endef
 
 ifeq ($(BR2_PACKAGE_UBOOT_TOOLS_MKIMAGE),y)
@@ -67,6 +64,8 @@ endef
 endif
 
 ifeq ($(BR2_PACKAGE_UBOOT_TOOLS_MKEFICAPSULE),y)
+UBOOT_TOOLS_MAKE_OPTS += CONFIG_TOOLS_MKEFICAPSULE=y
+UBOOT_TOOLS_DEPENDENCIES += gnutls util-linux
 define UBOOT_TOOLS_INSTALL_MKEFICAPSULE
 	$(INSTALL) -m 0755 -D $(@D)/tools/mkeficapsule $(TARGET_DIR)/usr/bin/mkeficapsule
 endef
@@ -108,22 +107,15 @@ endef
 # host-uboot-tools
 
 define HOST_UBOOT_TOOLS_CONFIGURE_CMDS
-	mkdir -p $(@D)/include/config
-	touch $(@D)/include/config/auto.conf
-	mkdir -p $(@D)/include/generated
-	touch $(@D)/include/generated/autoconf.h
-	echo $(if $(BR2_PACKAGE_HOST_UBOOT_TOOLS_FIT_SUPPORT),'#define CONFIG_FIT_PRINT 1') >> $(@D)/include/generated/autoconf.h
-	mkdir -p $(@D)/include/asm
-	touch $(@D)/include/asm/linkage.h
+	$(BR2_MAKE1) -C $(@D) $(HOST_UBOOT_TOOLS_MAKE_OPTS) tools-only_defconfig
 endef
 
 HOST_UBOOT_TOOLS_MAKE_OPTS = HOSTCC="$(HOSTCC)" \
 	HOSTCFLAGS="$(HOST_CFLAGS)" \
-	HOSTLDFLAGS="$(HOST_LDFLAGS)" \
-	CONFIG_EFI_HAVE_CAPSULE_SUPPORT=y
+	HOSTLDFLAGS="$(HOST_LDFLAGS)"
 
 ifeq ($(BR2_PACKAGE_HOST_UBOOT_TOOLS_FIT_SUPPORT),y)
-HOST_UBOOT_TOOLS_MAKE_OPTS += CONFIG_FIT=y CONFIG_MKIMAGE_DTC_PATH=dtc
+HOST_UBOOT_TOOLS_MAKE_OPTS += CONFIG_FIT=y CONFIG_MKIMAGE_DTC_PATH=dtc CONFIG_FIT_PRINT=y
 HOST_UBOOT_TOOLS_DEPENDENCIES += host-dtc
 endif
 
@@ -207,8 +199,7 @@ endef
 endif #BR2_PACKAGE_HOST_UBOOT_TOOLS_BOOT_SCRIPT
 
 define HOST_UBOOT_TOOLS_BUILD_CMDS
-	$(BR2_MAKE1) -C $(@D) $(HOST_UBOOT_TOOLS_MAKE_OPTS) tools-only
-	$(BR2_MAKE1) -C $(@D) $(HOST_UBOOT_TOOLS_MAKE_OPTS) envtools no-dot-config-targets=envtools
+	$(BR2_MAKE1) -C $(@D) $(HOST_UBOOT_TOOLS_MAKE_OPTS) tools-all
 	$(HOST_UBOOT_TOOLS_GENERATE_ENVIMAGE)
 	$(HOST_UBOOT_TOOLS_GENERATE_BOOT_SCRIPT)
 endef
