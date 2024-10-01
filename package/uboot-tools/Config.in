@@ -1,5 +1,6 @@
 config BR2_PACKAGE_UBOOT_TOOLS
 	bool "u-boot tools"
+	select BR2_PACKAGE_OPENSSL
 	help
 	  Companion tools for Das U-Boot bootloader.
 
@@ -28,7 +29,6 @@ if BR2_PACKAGE_UBOOT_TOOLS_FIT_SUPPORT
 
 config BR2_PACKAGE_UBOOT_TOOLS_FIT_SIGNATURE_SUPPORT
 	bool "FIT signature verification support"
-	select BR2_PACKAGE_OPENSSL
 	help
 	  Enables support for FIT Signature Verification.
 
@@ -68,6 +68,9 @@ config BR2_PACKAGE_UBOOT_TOOLS_MKIMAGE
 
 config BR2_PACKAGE_UBOOT_TOOLS_MKEFICAPSULE
 	bool "mkeficapsule"
+	select BR2_PACKAGE_GNUTLS
+	select BR2_PACKAGE_UTIL_LINUX
+	select BR2_PACKAGE_UTIL_LINUX_LIBUUID
 	help
 	  Install the mkeficapsule tool on the target system
 

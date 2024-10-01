@@ -19,7 +19,7 @@ diff --git a/tools/Makefile b/tools/Makefile
 index 4a86321f64..98bb92990d 100644
 --- a/tools/Makefile
 +++ b/tools/Makefile
-@@ -316,7 +316,8 @@ subdir- += env
+@@ -336,7 +336,8 @@ subdir- += env
  
  ifneq ($(CROSS_BUILD_TOOLS),)
  override HOSTCC = $(CC)
