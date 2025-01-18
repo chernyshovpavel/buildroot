@@ -12,74 +12,98 @@
 # To avoid conflict with the old tarball on s.b.o. used by older versions of
 # Buildroot, we can't use the same filename for the generated archive, so we
 # drop the last char in the commit hash.
-ROCKCHIP_MALI_VERSION = 721653b5b3b525a4f80d15aa7e2f9df7b7e6042
+
+
+#ROCKCHIP_MALI_VERSION = ab3d91e3df2ef1c487c2d8f69daea1729668e428
+#ROCKCHIP_MALI_SITE = $(call github,JeffyCN,mirrors,$(ROCKCHIP_MALI_VERSION))
+#ROCKCHIP_MALI_LICENSE = Proprietary
+
+
+ROCKCHIP_MALI_VERSION = 92183c8482e6173fa510f228e62b1c73c99be87d
 ROCKCHIP_MALI_SITE = $(call github,JeffyCN,mirrors,$(ROCKCHIP_MALI_VERSION))
 ROCKCHIP_MALI_LICENSE = Proprietary
+
 ROCKCHIP_MALI_LICENSE_FILES = END_USER_LICENCE_AGREEMENT.txt
 ROCKCHIP_MALI_INSTALL_STAGING = YES
 ROCKCHIP_MALI_DEPENDENCIES = host-patchelf libdrm
-ROCKCHIP_MALI_PROVIDES = libegl libgles libgbm
 
-ROCKCHIP_MALI_LIB = libmali-bifrost-g31-rxp0$(ROCKCHIP_MALI_SUFFIX).so
-ROCKCHIP_MALI_PKGCONFIG_FILES = egl gbm glesv2 mali
-ROCKCHIP_MALI_ARCH_DIR = $(if $(BR2_arm)$(BR2_armeb),arm-linux-gnueabihf,aarch64-linux-gnu)
-ROCKCHIP_MALI_HEADERS = EGL FBDEV GLES GLES2 GLES3 KHR gbm.h
-
-# We need to create:
-# - The symlink that matches the library SONAME (libmali.so.1)
-# - The .so symlinks needed at compile time by the compiler (*.so)
-ROCKCHIP_MALI_LIB_SYMLINKS = \
-	libmali.so.1 \
-	libMali.so \
-	libEGL.so \
-	libgbm.so \
-	libGLESv1_CM.so \
-	libGLESv2.so
-
-ifeq ($(BR2_PACKAGE_WAYLAND),y)
-ROCKCHIP_MALI_SUFFIX = -wayland-gbm
-ROCKCHIP_MALI_PKGCONFIG_FILES += wayland-egl
-ROCKCHIP_MALI_LIB_SYMLINKS += libwayland-egl.so
-ROCKCHIP_MALI_DEPENDENCIES += wayland
-else
-ROCKCHIP_MALI_SUFFIX = -gbm
+ifeq ($(BR2_PACKAGE_PX3SE),y)
+ROCKCHIP_MALI_GPU = utgard-400
+ROCKCHIP_MALI_VER = r7p0
+ROCKCHIP_MALI_SUBVER = r3p0
+else ifneq ($(BR2_PACKAGE_RK312X)$(BR2_PACKAGE_RK3128H)$(BR2_PACKAGE_RK3036)$(BR2_PACKAGE_RK3032),)
+ROCKCHIP_MALI_GPU = utgard-400
+ROCKCHIP_MALI_VER = r7p0
+ROCKCHIP_MALI_SUBVER = r1p1
+else ifeq ($(BR2_PACKAGE_RK3328),y)
+ROCKCHIP_MALI_GPU = utgard-450
+ROCKCHIP_MALI_VER = r7p0
+else ifeq ($(BR2_PACKAGE_RK3288),y)
+ROCKCHIP_MALI_GPU = midgard-t76x
+ROCKCHIP_MALI_VER = r18p0
+ROCKCHIP_MALI_SUBVER = all
+else ifneq ($(BR2_PACKAGE_RK3399)$(BR2_PACKAGE_RK3399PRO),)
+ROCKCHIP_MALI_GPU = midgard-t86x
+ROCKCHIP_MALI_VER = r18p0
+else ifneq ($(BR2_PACKAGE_RK3326)$(BR2_PACKAGE_PX30),)
+ROCKCHIP_MALI_GPU = bifrost-g31
+ROCKCHIP_MALI_VER = g2p0
+else ifeq ($(BR2_PACKAGE_RK356X),y)
+ROCKCHIP_MALI_GPU = bifrost-g52
+ROCKCHIP_MALI_VER = g2p0
+else ifeq ($(BR2_PACKAGE_RK3588),y)
+ROCKCHIP_MALI_GPU = valhall-g610
+ROCKCHIP_MALI_VER = g6p0
 endif
 
-define ROCKCHIP_MALI_INSTALL_CMDS
-# 	Install the library
-	$(INSTALL) -D -m 0755 \
-		$(@D)/lib/$(ROCKCHIP_MALI_ARCH_DIR)/$(ROCKCHIP_MALI_LIB) \
-		$(1)/usr/lib/$(ROCKCHIP_MALI_LIB)
+ifeq ($(BR2_PACKAGE_ROCKCHIP_MALI_HAS_EGL),y)
+ROCKCHIP_MALI_PROVIDES += libegl
+endif
 
-# 	Ensure it has a proper soname
-	$(HOST_DIR)/bin/patchelf --set-soname libmali.so.1 \
-		$(1)/usr/lib/$(ROCKCHIP_MALI_LIB)
+ifeq ($(BR2_PACKAGE_ROCKCHIP_MALI_HAS_GBM),y)
+ROCKCHIP_MALI_PROVIDES += libgbm
+endif
 
-#	Generate and install the .pc files
-	mkdir -p $(1)/usr/lib/pkgconfig
-	$(foreach pkgconfig,$(ROCKCHIP_MALI_PKGCONFIG_FILES), \
-		sed -e 's%@CMAKE_INSTALL_LIBDIR@%lib%;s%@CMAKE_INSTALL_INCLUDEDIR@%include%' \
-			$(@D)/pkgconfig/$(pkgconfig).pc.cmake > \
-			$(1)/usr/lib/pkgconfig/$(pkgconfig).pc
-	)
+ifeq ($(BR2_PACKAGE_ROCKCHIP_MALI_HAS_GLES),y)
+ROCKCHIP_MALI_PROVIDES += libgles
+endif
 
-#	Install all headers
-	$(foreach d,$(ROCKCHIP_MALI_HEADERS), \
-		cp -dpfr $(@D)/include/$(d) $(1)/usr/include/
-	)
+ifeq ($(BR2_PACKAGE_ROCKCHIP_MALI_HAS_OPENCL),y)
+ROCKCHIP_MALI_PROVIDES += libopencl
+endif
 
-#	Create symlinks
-	$(foreach symlink,$(ROCKCHIP_MALI_LIB_SYMLINKS), \
-		ln -sf $(ROCKCHIP_MALI_LIB) $(1)/usr/lib/$(symlink)
-	)
-endef
+ifeq ($(BR2_PACKAGE_ROCKCHIP_MALI_ONLY_CL),y)
+ROCKCHIP_MALI_PLATFORM = only-cl
+else ifeq ($(BR2_PACKAGE_ROCKCHIP_MALI_DUMMY),y)
+ROCKCHIP_MALI_PLATFORM = dummy
+else ifeq ($(BR2_PACKAGE_ROCKCHIP_MALI_WAYLAND),y)
+ROCKCHIP_MALI_PLATFORM = wayland
+ROCKCHIP_MALI_DEPENDENCIES += wayland
+else ifeq ($(BR2_PACKAGE_ROCKCHIP_MALI_X11),y)
+ROCKCHIP_MALI_PLATFORM = x11
+ROCKCHIP_MALI_DEPENDENCIES += libxcb xlib_libX11
+else ifeq ($(BR2_PACKAGE_ROCKCHIP_MALI_GBM),y)
+ROCKCHIP_MALI_PLATFORM = gbm
+endif
 
-define ROCKCHIP_MALI_INSTALL_TARGET_CMDS
-	$(call ROCKCHIP_MALI_INSTALL_CMDS,$(TARGET_DIR))
-endef
+ROCKCHIP_MALI_CONF_OPTS += \
+	-Dwith-overlay=true -Dopencl-icd=false -Dkhr-header=true \
+	-Dplatform=$(ROCKCHIP_MALI_PLATFORM) -Dgpu=$(ROCKCHIP_MALI_GPU) \
+	-Dversion=$(ROCKCHIP_MALI_VER)
 
-define ROCKCHIP_MALI_INSTALL_STAGING_CMDS
-	$(call ROCKCHIP_MALI_INSTALL_CMDS,$(STAGING_DIR))
-endef
+ifeq ($(BR2_PACKAGE_ROCKCHIP_MALI_WITHOUT_CL),y)
+ROCKCHIP_MALI_SUBVER += without-cl
+endif
 
-$(eval $(generic-package))
+ifeq ($(BR2_PACKAGE_ROCKCHIP_MALI_WITH_DUMMY)|$(BR2_PACKAGE_ROCKCHIP_MALI_DUMMY),y|)
+ROCKCHIP_MALI_SUBVER += dummy
+endif
+
+ROCKCHIP_MALI_CONF_OPTS += \
+	-Dsubversion=$(subst $(eval) $(eval),-,$(ROCKCHIP_MALI_SUBVER))
+
+ifeq ($(BR2_PACKAGE_ROCKCHIP_MALI_OPTIMIZE_s),y)
+ROCKCHIP_MALI_CONF_OPTS += -Doptimize-level=Os
+endif
+
+$(eval $(meson-package))
