@@ -4,27 +4,37 @@
 #
 ################################################################################
 
-WESTON_VERSION = 13.0.3
+WESTON_VERSION = 10.0.1
 WESTON_SITE = https://gitlab.freedesktop.org/wayland/weston/-/releases/$(WESTON_VERSION)/downloads
 WESTON_SOURCE = weston-$(WESTON_VERSION).tar.xz
 WESTON_LICENSE = MIT
 WESTON_LICENSE_FILES = COPYING
 WESTON_CPE_ID_VENDOR = wayland
-WESTON_INSTALL_STAGING = YES
 
 WESTON_DEPENDENCIES = host-pkgconf wayland wayland-protocols \
-	libxkbcommon pixman libpng udev cairo libinput libdrm seatd
+	libxkbcommon pixman libpng udev cairo libinput libdrm
 
 WESTON_CONF_OPTS = \
+	-Dbackend-headless=false \
+	-Dcolor-management-colord=false \
 	-Ddoc=false \
 	-Dremoting=false \
-	-Dbackend-vnc=false \
 	-Dtools=calibrator,debug,info,terminal,touch-calibrator
+
+ifeq ($(BR2_PACKAGE_DBUS)$(BR2_PACKAGE_SYSTEMD),yy)
+WESTON_CONF_OPTS += -Dlauncher-logind=true
+WESTON_DEPENDENCIES += dbus systemd
+else
+WESTON_CONF_OPTS += -Dlauncher-logind=false
+endif
 
 ifeq ($(BR2_PACKAGE_WESTON_SIMPLE_CLIENTS),y)
 # Note: some clients are conditional, see further for the others.
 WESTON_SIMPLE_CLIENTS = \
 	damage \
+	dmabuf-egl \
+	dmabuf-feedback \
+	egl \
 	im \
 	shm \
 	touch
@@ -34,6 +44,8 @@ ifeq ($(BR2_TOOLCHAIN_HEADERS_AT_LEAST_3_8),y)
 WESTON_SIMPLE_CLIENTS += dmabuf-v4l
 endif
 endif # BR2_PACKAGE_WESTON_SIMPLE_CLIENTS
+
+WESTON_CONF_OPTS += -Dsimple-clients=$(subst $(space),$(comma),$(strip $(WESTON_SIMPLE_CLIENTS)))
 
 ifeq ($(BR2_PACKAGE_JPEG),y)
 WESTON_CONF_OPTS += -Dimage-jpeg=true
@@ -52,23 +64,17 @@ endif
 ifeq ($(BR2_PACKAGE_HAS_LIBEGL)$(BR2_PACKAGE_HAS_LIBGBM)$(BR2_PACKAGE_HAS_LIBGLES),yyy)
 WESTON_CONF_OPTS += -Drenderer-gl=true
 WESTON_DEPENDENCIES += libegl libgbm libgles
-ifeq ($(BR2_PACKAGE_WESTON_SIMPLE_CLIENTS),y)
-WESTON_SIMPLE_CLIENTS += dmabuf-egl dmabuf-feedback egl
-endif
 ifeq ($(BR2_PACKAGE_PIPEWIRE)$(BR2_PACKAGE_WESTON_DRM),yy)
-WESTON_CONF_OPTS += -Dpipewire=true -Dbackend-pipewire=true
+WESTON_CONF_OPTS += -Dpipewire=true
 WESTON_DEPENDENCIES += pipewire
 else
-WESTON_CONF_OPTS += -Dpipewire=false -Dbackend-pipewire=false
+WESTON_CONF_OPTS += -Dpipewire=false
 endif
 else
 WESTON_CONF_OPTS += \
 	-Drenderer-gl=false \
-	-Dpipewire=false \
-	-Dbackend-pipewire=false
+	-Dpipewire=false
 endif
-
-WESTON_CONF_OPTS += -Dsimple-clients=$(subst $(space),$(comma),$(strip $(WESTON_SIMPLE_CLIENTS)))
 
 ifeq ($(BR2_PACKAGE_WESTON_RDP),y)
 WESTON_DEPENDENCIES += freerdp
@@ -107,7 +113,7 @@ WESTON_CONF_OPTS += -Dbackend-default=$(call qstrip,$(BR2_PACKAGE_WESTON_DEFAULT
 
 ifeq ($(BR2_PACKAGE_WESTON_XWAYLAND),y)
 WESTON_CONF_OPTS += -Dxwayland=true
-WESTON_DEPENDENCIES += cairo libepoxy libxcb xcb-util-cursor xlib_libX11 xlib_libXcursor xwayland
+WESTON_DEPENDENCIES += cairo libepoxy libxcb xlib_libX11 xlib_libXcursor xwayland
 else
 WESTON_CONF_OPTS += -Dxwayland=false
 endif
@@ -164,17 +170,44 @@ else
 WESTON_CONF_OPTS += -Dshell-kiosk=false
 endif
 
-ifeq ($(BR2_PACKAGE_WESTON_SCREENSHARE),y)
-WESTON_CONF_OPTS += -Dscreenshare=true
-else
-WESTON_CONF_OPTS += -Dscreenshare=false
-endif
-
 ifeq ($(BR2_PACKAGE_WESTON_DEMO_CLIENTS),y)
 WESTON_CONF_OPTS += -Ddemo-clients=true
 WESTON_DEPENDENCIES += pango
 else
 WESTON_CONF_OPTS += -Ddemo-clients=false
 endif
+
+ifeq ($(BR2_PACKAGE_ROCKCHIP_RGA),y)
+WESTON_DEPENDENCIES += rockchip-rga
+endif
+
+ifeq ($(BR2_PACKAGE_HAS_LIBEGL)$(BR2_PACKAGE_HAS_LIBGLES),yy)
+WESTON_CONF_OPTS += -Dsimple-clients=all
+else
+WESTON_CONF_OPTS += -Dsimple-clients=
+endif
+
+ifeq ($(BR2_PACKAGE_WESTON_DEFAULT_PIXMAN),y)
+define WESTON_INSTALL_PIXMAN_INI
+        $(INSTALL) -D -m 0644 $(WESTON_PKGDIR)/pixman.ini \
+                $(TARGET_DIR)/etc/xdg/weston/weston.ini.d/01-pixman.ini
+endef
+
+WESTON_POST_INSTALL_TARGET_HOOKS += WESTON_INSTALL_PIXMAN_INI
+endif
+
+define WESTON_INSTALL_TARGET_ENV
+        $(INSTALL) -D -m 0644 $(WESTON_PKGDIR)/weston.sh \
+                $(TARGET_DIR)/etc/profile.d/weston.sh
+endef
+
+WESTON_POST_INSTALL_TARGET_HOOKS += WESTON_INSTALL_TARGET_ENV
+
+define WESTON_INSTALL_TARGET_SCRIPTS
+        $(INSTALL) -D -m 0755 $(WESTON_PKGDIR)/weston-calibration-helper.sh \
+                $(TARGET_DIR)/bin/weston-calibration-helper.sh
+endef
+
+WESTON_POST_INSTALL_TARGET_HOOKS += WESTON_INSTALL_TARGET_SCRIPTS
 
 $(eval $(meson-package))
